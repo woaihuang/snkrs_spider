@@ -5,11 +5,16 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from qiniu import Auth, put_file, etag
 import requests, os, pymysql
-import datetime, time
+import datetime, time, sys
 import smtplib
 import json
 import xlwt
 import re
+
+
+sys.path.append(os.getcwd() + '/')
+sys.path.append('/usr/local/python3/lib/python3.6/site-packages/')
+
 
 
 
@@ -19,15 +24,15 @@ class GetChinaMsg():
         """
         初始化邮件正文的商品名称
         """
-        self.conn = pymysql.connect(
-            host='rm-bp1ao27e2h337vf2c.mysql.rds.aliyuncs.com',
+        self.Usa_conn = pymysql.connect(
+            host='rr-bp1ikaw9tc3sqe98r.mysql.rds.aliyuncs.com',
             user="bigdata_rw",
             password="Eyee@934",
             database="community",
             charset='utf8'
         )
 
-        self.conn1 = pymysql.connect(
+        self.Usa_conn1 = pymysql.connect(
             host='rm-bp1nomodr5ingvn4k.mysql.rds.aliyuncs.com',                                        #内网
             # host='rm-bp1nomodr5ingvn4k4o.mysql.rds.aliyuncs.com',
             user="bigdata_analysis",
@@ -35,26 +40,12 @@ class GetChinaMsg():
             database="analysis",
             charset='utf8'
         )
-        self.cur1 = self.conn1.cursor()
+        self.Usa_cur1 = self.Usa_conn1.cursor()
 
-        self.cur = self.conn.cursor()
+        self.Usa_cur = self.Usa_conn.cursor()
 
         self.shoesname = ''
         self.date = {}
-
-
-
-
-    def weixinsend(self, date):
-        """
-        微信发送接口
-        :param date:
-        :return:
-        """
-        reql = requests.get('http://47.111.128.125:8889/snkrs/?date={}'.format(date))
-        # reql = requests.get('http://127.0.0.1:8000/snkrs/?date={}'.format(date))
-
-        return reql.text
 
 
 
@@ -80,6 +71,7 @@ class GetChinaMsg():
 
 
 
+
     def GetMsg(self):
         """
         获取我们想要的商品信息
@@ -93,15 +85,15 @@ class GetChinaMsg():
 
         country = 'SNKRS美国'        #国家
 
-        sql1 = 'select distinct productid from monitor_result where distributionid=2 and `status`=0'
+        sql1 = 'select distinct productid from monitor_result where distributionid=2 and `status`=3'
 
         try:
-            self.cur1.execute(sql1)
+            self.Usa_cur1.execute(sql1)
 
         except Exception as e:
             print('查询错误：{}'.format(e))
 
-        SkuList = self.cur1.fetchall()
+        SkuList = self.Usa_cur1.fetchall()
 
         OldPublishTime = [i[0] for i in SkuList]
 
@@ -113,7 +105,7 @@ class GetChinaMsg():
 
             seoSlug = ShoesList[i]['seoSlug']
 
-            TheLinkadDress = 'https://www.nike.com/us/launch/t/' + seoSlug
+            TheLinkadDress = 'https://www.nike.com/us/launch/t/'+seoSlug
 
             ShoesSku = str(ShoesList[i]['product']['style']) + '-' + str(ShoesList[i]['product']['colorCode'])
 
@@ -123,34 +115,19 @@ class GetChinaMsg():
 
             if productId not in OldPublishTime and ShoesSku not in ['BQ4800-100', 'CD9329-001', 'AV4052-100', 'CK1905-100', 'CK1907-600', 'AO3189-001', 'AO3189-100']:
 
-                if 'title' in ShoesList[i]['product'] and restricted is False:
+                if 'title' in ShoesList[i]['product'] and restricted is True:
 
                     title = ShoesList[i]['product']['title']
                     imageUrl = ShoesList[i]['product']['imageUrl']
 
-                    publishedDate = re.findall('(.*?)[.]', str(ShoesList[i]['publishedDate']).replace('T', ' '))[0]
+                    startSellDate = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                    startSellDates = re.findall('(.*?)[.]', str(ShoesList[i]['product']['startSellDate']).replace('T', ' '))[0]
-
-                    startSellDate1 = datetime.datetime.strptime(startSellDates, "%Y-%m-%d %H:%M:%S")
-
-                    startSellDate = (startSellDate1 + datetime.timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')  # 开始销售时间
-
-                    d = datetime.datetime.strptime(publishedDate, '%Y-%m-%d %H:%M:%S')
-                    d1 = datetime.datetime.strptime(startSellDates, '%Y-%m-%d %H:%M:%S')
-
-                    if str(d1 - d) <= '0:04:00':
-                        Additional_information = "突袭"
-
-                    elif 'selectionEngine' in ShoesList[i]['product']:
-                        Additional_information = ShoesList[i]['product']['selectionEngine']  # 抽签引擎
-
-                    else:
-                        Additional_information = '发售'
+                    Additional_information = '专属购买'  # 附加信息
 
                     if 'skus' in ShoesList[i]['product']:
 
                         for j in ShoesList[i]['product']['skus']:
+
                             replenishment_dict[j['localizedSize']] = j['available']
 
                     access_key = '92SPonlDvYbu91VZOxvrHUmc9pHi3B8Wy5PUlzQ8'
@@ -162,33 +139,27 @@ class GetChinaMsg():
 
                     token = q.upload_token(bucket_name, key, 3600)
 
-                    r = requests.get(imageUrl)
+                    r = requests.get(imageUrl, timeout=5)
 
-                    with open('/root/snker_crawler/img/beauty_11.jpg', 'wb') as f:
+                    with open('/root/snker_crawler/img/beauty_16.jpg', 'wb') as f:
                         f.write(r.content)
 
-                    localfile = '/root/snker_crawler/img/beauty_11.jpg'
+                    localfile = '/root/snker_crawler/img/beauty_16.jpg'
                     ret, info = put_file(token, key, localfile)
                     Img_url = 'http://putu4ibve.bkt.clouddn.com/' + json.loads(info.text_body).get('key')
                     assert ret['key'] == key
                     assert ret['hash'] == etag(localfile)
-
                     pushid = int(round(time.time() * 1000))
 
-                    sql = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, size, `status`, createtime, distributionid, linkurl, productid, sortnum, pushid) VALUES("{}", '{}', 'SNKRS美国', '{}', '{}', '{}', "{}", 0, now(), 2, '{}', '{}', 2, {})""".format(
-                        title, ShoesSku, Additional_information, startSellDate, Img_url, replenishment_dict, TheLinkadDress, productId, pushid)
+                    sql_1 = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, size, `status`, createtime, distributionid, linkurl, productid) VALUES("{}", '{}', 'SNKRS美国', '{}', '{}', '{}', "{}", 3, now(), 2, '{}', '{}')""".format(pymysql.escape_string(title),ShoesSku,Additional_information, startSellDate, Img_url, replenishment_dict, pymysql.escape_string(TheLinkadDress), productId)
 
                     try:
-                        self.cur.execute(sql)
+                        self.Usa_cur1.execute(sql_1)
 
                     except Exception as e:
                         print('插入错误：{}'.format(e))
 
-                    try:
-                        self.cur1.execute(sql)
-
-                    except Exception as e:
-                        print('本地插入错误：{}'.format(e))
+                    self.Usa_conn1.commit()
 
                     Callbacdata = {'id': pushid}
 
@@ -198,26 +169,38 @@ class GetChinaMsg():
                     dt_minus1day1 = (now_time + datetime.timedelta(seconds=-4)).strftime('%Y-%m-%d %H:%M:%S')
                     dt_minus1day2 = (now_time + datetime.timedelta(seconds=+4)).strftime('%Y-%m-%d %H:%M:%S')
 
-                    sql_7 = "SELECT * FROM monitor_result WHERE size='{}' AND createtime BETWEEN '{}' AND '{}'".format(replenishment_dict, dt_minus1day1, dt_minus1day2)
+                    sql_7 = "SELECT * FROM monitor_result WHERE linkurl='{}' AND createtime BETWEEN '{}' AND '{}'".format(
+                        TheLinkadDress, dt_minus1day1, dt_minus1day2)
 
                     try:
-                        self.cur.execute(sql_7)
+                        self.Usa_cur.execute(sql_7)
                     except Exception as E:
                         print(E)
 
-                    Grab_judgment = self.cur.fetchall()
+                    Grab_judgment = self.Usa_cur.fetchall()
 
                     if len(Grab_judgment) == 0:
 
-                        self.conn.commit()
+                        sql = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, size, `status`, createtime, distributionid, linkurl, productid, sortnum, pushid) VALUES("{}", '{}', 'SNKRS美国', '{}', '{}', '{}', "{}", 0, now(), 2, '{}', '{}', 2, {})""".format(
+                            title, ShoesSku, Additional_information, startSellDate, Img_url, replenishment_dict,
+                            TheLinkadDress, productId, pushid)
+
 
                         try:
+                            self.Usa_cur.execute(sql)
 
-                            reqls = requests.post('http://stest.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader)
+                        except Exception as e:
+                            print('插入错误：{}'.format(e))
 
-                            with open('/root/push/pushUsa.log', 'a') as d:
-                                d.write(str(reqls.text))
+                        self.Usa_conn.commit()
+
+                        try:
+                            reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+
+                            with open('/root/push/pushexclUsa.log', 'a') as d:
+                                d.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + str(reqls.text) + str(pushid))
                                 d.write('\n')
+
                         except Exception as E:
                             print(E)
 
@@ -231,19 +214,18 @@ class GetChinaMsg():
 
                         ShoeTitle.append(date)
 
-
         if len(ShoeTitle) > 0:
             for i in ShoeTitle:
                 print(i)
 
             # self.weixinsend(ShoeTitle)
 
-            self.cur.close()
-            self.conn.close()
-            
-            self.conn1.commit()
-            self.cur1.close()
-            self.conn1.close()
+            self.Usa_cur.close()
+            self.Usa_conn.close()
+
+            self.Usa_cur1.close()
+            self.Usa_conn1.close()
+
             print('发送保存成功')
 
 

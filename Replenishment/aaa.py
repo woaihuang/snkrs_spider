@@ -9,23 +9,43 @@ import json
 import re
 
 
+def aaaa():
+    """
+    初始化邮件正文的商品名称
+    """
+    Usa_conn = pymysql.connect(
+        host='rm-bp1ao27e2h337vf2c.mysql.rds.aliyuncs.com',
+        user="bigdata_rw",
+        password="Eyee@934",
+        database="community",
+        charset='utf8'
+    )
+
+    cur = Usa_conn.cursor()
+
+    if cur:
+        print('链接成功')
+
+
+
+
 
 
 class GetChinaMsg():
     def __init__(self):
+
+
+
         """
         初始化邮件正文的商品名称
         """
         self.conn = pymysql.connect(
-            host='rm-bp160wp5wbvzp4a6m.mysql.rds.aliyuncs.com',
-            user="eyee",
-            password="Eyeetest-181024",
-            database="community_test",
+            host='rr-bp1ikaw9tc3sqe98r.mysql.rds.aliyuncs.com',
+            user=" bigdata_rw",
+            password=" Eyee@934",
+            database="community",
             charset='utf8mb4'
         )
-
-        self.conn1 = pymysql.connect("localhost", user='root', passwd='Eyee@934', db='snkrs', port=3306, charset='utf8mb4')
-        self.cur1 = self.conn1.cursor()
 
         self.cur = self.conn.cursor()
 

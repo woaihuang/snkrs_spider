@@ -4,12 +4,16 @@
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from qiniu import Auth, put_file, etag
-import requests, os, pymysql
+import requests, os, pymysql, sys
 import datetime, time 
 import smtplib
 import json
 import xlwt
 import re
+
+
+sys.path.append(os.getcwd() + '/')
+sys.path.append('/usr/local/python3/lib/python3.6/site-packages/')
 
 
 
@@ -19,7 +23,7 @@ class GetChinaMsg():
         """
         初始化邮件正文的商品名称
         """
-        self.conn = pymysql.connect(
+        self.Pass_china_conn = pymysql.connect(
             host='rm-bp1ao27e2h337vf2c.mysql.rds.aliyuncs.com',
             user="bigdata_rw",
             password="Eyee@934",
@@ -27,7 +31,7 @@ class GetChinaMsg():
             charset='utf8'
         )
 
-        self.conn1 = pymysql.connect(
+        self.Pass_china_conn1 = pymysql.connect(
             host='rm-bp1nomodr5ingvn4k.mysql.rds.aliyuncs.com',                                        #内网
             # host='rm-bp1nomodr5ingvn4k4o.mysql.rds.aliyuncs.com',
             user="bigdata_analysis",
@@ -35,26 +39,12 @@ class GetChinaMsg():
             database="analysis",
             charset='utf8'
         )
-        self.cur1 = self.conn1.cursor()
+        self.Pass_china_cur1 = self.Pass_china_conn1.cursor()
 
-        self.cur = self.conn.cursor()
+        self.Pass_china_cur = self.Pass_china_conn.cursor()
 
         self.shoesname = ''
         self.date = {}
-
-
-
-    def weixinsend(self, date):
-        """
-        微信发送接口
-        :param date:
-        :return:
-        """
-        reql = requests.get('http://47.111.128.125:8889/snkrs/?date={}'.format(date))
-        # reql = requests.get('http://127.0.0.1:8000/snkrs/?date={}'.format(date))
-
-        print(reql.text)
-
 
 
 
@@ -95,12 +85,12 @@ class GetChinaMsg():
         sql1 = 'select distinct productid from monitor_result where distributionid=1 and `status`=2'
 
         try:
-            self.cur1.execute(sql1)
+            self.Pass_china_cur1.execute(sql1)
 
         except Exception as e:
             print('查询错误：{}'.format(e))
 
-        SkuList = self.cur1.fetchall()
+        SkuList = self.Pass_china_cur1.fetchall()
 
         OldPublishTime = [i[0] for i in SkuList]
 
@@ -156,11 +146,15 @@ class GetChinaMsg():
 
                         sql_1 = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, `status`, createtime, distributionid, linkurl, productid) VALUES("{}", '{}', 'SNKRS中国', '{}', '{}', '{}', 2, now(), 1, '{}', '{}')""".format(title, ShoesSku, Additional_information, startSellDate, Img_url, TheLinkadDress, productId)
 
+
+
                         try:
-                            self.cur1.execute(sql_1)
+                            self.Pass_china_cur1.execute(sql_1)
 
                         except Exception as e:
                             print('插入错误：{}'.format(e))
+
+                        self.Pass_china_conn1.commit()
 
                         Callbacdata = {'id': pushid}
 
@@ -173,28 +167,29 @@ class GetChinaMsg():
                         sql_7 = "SELECT * FROM monitor_result WHERE linkurl='{}' AND createtime BETWEEN '{}' AND '{}'".format(TheLinkadDress, dt_minus1day1, dt_minus1day2)
 
                         try:
-                            self.cur.execute(sql_7)
+                            self.Pass_china_cur.execute(sql_7)
                         except Exception as E:
                             print(E)
 
-                        Grab_judgment = self.cur.fetchall()
+                        Grab_judgment = self.Pass_china_cur.fetchall()
 
                         if len(Grab_judgment) == 0:
 
                             sql = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, `status`, createtime, distributionid, linkurl, productid, sortnum, pushid) VALUES("{}", '{}', 'SNKRS中国', '{}', '{}', '{}', 0, now(), 1, '{}', '{}', 1, {})""".format(title, ShoesSku, Additional_information, startSellDate, Img_url, TheLinkadDress, productId, pushid)
 
                             try:
-                                self.cur.execute(sql)
+                                self.Pass_china_cur.execute(sql)
 
                             except Exception as e:
                                 print('插入错误：{}'.format(e))
 
-                            self.conn.commit()
+                            self.Pass_china_conn.commit()
 
-                            reqls = requests.post('http://stest.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+                            reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+
 
                             with open('/root/push/passChina.log', 'a') as d:
-                                d.write(str(reqls.text))
+                                d.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + str(reqls.text) + str(pushid))
                                 d.write('\n')
 
                             date['productname'] = title
@@ -214,13 +209,14 @@ class GetChinaMsg():
 
             # self.weixinsend(ShoeTitle)
 
-            self.cur.close()
-            self.conn.close()
+            self.Pass_china_cur.close()
+            self.Pass_china_conn.close()
 
-            self.conn1.commit()
-            self.cur1.close()
-            self.conn1.close()
+            self.Pass_china_cur1.close()
+            self.Pass_china_conn1.close()
             print('发送保存成功')
+
+
 
 
 

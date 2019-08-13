@@ -2,9 +2,14 @@
 #-*- coding: UTF-8 -*-
 
 from qiniu import Auth, put_file, etag
-import requests, pymysql
+import requests, pymysql, sys, os
 import datetime, time
 import json
+
+
+sys.path.append(os.getcwd() + '/')
+sys.path.append('/usr/local/python3/lib/python3.6/site-packages/')
+
 
 
 
@@ -14,7 +19,7 @@ class GetChinaMsg():
         """
         初始化邮件正文的商品名称
         """
-        self.conn = pymysql.connect(
+        self.Pass_JP_conn = pymysql.connect(
             host='rm-bp1ao27e2h337vf2c.mysql.rds.aliyuncs.com',
             user="bigdata_rw",
             password="Eyee@934",
@@ -22,7 +27,7 @@ class GetChinaMsg():
             charset='utf8'
         )
 
-        self.conn1 = pymysql.connect(
+        self.Pass_JP_conn1 = pymysql.connect(
             host='rm-bp1nomodr5ingvn4k.mysql.rds.aliyuncs.com',                                        #内网
             # host='rm-bp1nomodr5ingvn4k4o.mysql.rds.aliyuncs.com',
             user="bigdata_analysis",
@@ -30,25 +35,12 @@ class GetChinaMsg():
             database="analysis",
             charset='utf8'
         )
-        self.cur1 = self.conn1.cursor()
+        self.Pass_JP_cur1 = self.Pass_JP_conn1.cursor()
 
-        self.cur = self.conn.cursor()
+        self.Pass_JP_cur = self.Pass_JP_conn.cursor()
 
         self.shoesname = ''
         self.date = {}
-
-
-
-    def weixinsend(self, date):
-        """
-        微信发送接口
-        :param date:
-        :return:
-        """
-        reql = requests.get('http://47.111.128.125:8889/snkrs/?date={}'.format(date))
-        # reql = requests.get('http://127.0.0.1:8000/snkrs/?date={}'.format(date))
-
-        print(reql.text)
 
 
 
@@ -88,12 +80,12 @@ class GetChinaMsg():
         sql1 = 'select distinct productid from monitor_result where distributionid=4 and `status`=2'
 
         try:
-            self.cur1.execute(sql1)
+            self.Pass_JP_cur1.execute(sql1)
 
         except Exception as e:
             print('查询错误：{}'.format(e))
 
-        SkuList = self.cur1.fetchall()
+        SkuList = self.Pass_JP_cur1.fetchall()
 
         OldPublishTime = [i[0] for i in SkuList]
 
@@ -112,6 +104,7 @@ class GetChinaMsg():
                     title = ShoesList[i]['name']
                     imageUrl = ShoesList[i]['imageUrl']
                     ShoesSku = str(ShoesList[i]['product']['style']) + '-' + str(ShoesList[i]['product']['colorCode'])
+
 
                     if ShoesSku not in ['BQ4800-100', 'CD9329-001', 'AV4052-100', 'CK1905-100', 'CK1907-600',
                                         'AO3189-001', 'AO3189-100']:
@@ -136,10 +129,10 @@ class GetChinaMsg():
 
                         r = requests.get(imageUrl, timeout=5)
 
-                        with open('beauty_2.jpg', 'wb') as f:
+                        with open('/root/snker_crawler/img/beauty_2.jpg', 'wb') as f:
                             f.write(r.content)
 
-                        localfile = 'beauty_2.jpg'
+                        localfile = '/root/snker_crawler/img/beauty_2.jpg'
                         ret, info = put_file(token, key, localfile)
                         Img_url = 'http://putu4ibve.bkt.clouddn.com/' + json.loads(info.text_body).get('key')
                         assert ret['key'] == key
@@ -149,11 +142,14 @@ class GetChinaMsg():
 
                         sql_1 = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, `status`, createtime, distributionid, linkurl, productid) VALUES("{}", '{}', 'SNKRS日本', '{}', '{}', '{}', 2, now(), 4, '{}', '{}')""".format(title, ShoesSku, Additional_information, startSellDate, Img_url, TheLinkadDress, productId)
 
+
                         try:
-                            self.cur1.execute(sql_1)
+                            self.Pass_JP_cur1.execute(sql_1)
 
                         except Exception as e:
                             print('插入错误：{}'.format(e))
+
+                        self.Pass_JP_conn1.commit()
 
                         Callbacdata = {'id': pushid}
 
@@ -167,11 +163,11 @@ class GetChinaMsg():
                             TheLinkadDress, dt_minus1day1, dt_minus1day2)
 
                         try:
-                            self.cur.execute(sql_7)
+                            self.Pass_JP_cur.execute(sql_7)
                         except Exception as E:
                             print(E)
 
-                        Grab_judgment = self.cur.fetchall()
+                        Grab_judgment = self.Pass_JP_cur.fetchall()
 
                         if len(Grab_judgment) == 0:
 
@@ -180,17 +176,16 @@ class GetChinaMsg():
                                 productId, pushid)
 
                             try:
-                                self.cur.execute(sql)
+                                self.Pass_JP_cur.execute(sql)
 
                             except Exception as e:
                                 print('插入错误：{}'.format(e))
 
-                            self.conn.commit()
-
-                            reqls = requests.post('http://stest.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+                            self.Pass_JP_conn.commit()
+                            reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
 
                             with open('/root/push/pushpassJP.log', 'a') as d:
-                                d.write(str(reqls.text))
+                                d.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + str(reqls.text) + str(pushid))
                                 d.write('\n')
 
                             date['productname'] = title
@@ -209,13 +204,17 @@ class GetChinaMsg():
 
             # self.weixinsend(ShoeTitle)
 
-            self.cur.close()
-            self.conn.close()
+            self.Pass_JP_cur.close()
+            self.Pass_JP_conn.close()
 
-            self.conn1.commit()
-            self.cur1.close()
-            self.conn1.close()
+            self.Pass_JP_cur1.close()
+            self.Pass_JP_conn1.close()
             print('发送保存成功')
+
+
+
+
+
 
 
 if __name__=="__main__":
