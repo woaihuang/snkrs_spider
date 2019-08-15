@@ -1,15 +1,12 @@
 #!/usr/local/bin/python3
 #-*- coding: UTF-8 -*-
 
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from config import sqlFile as sqlFile_test
 from qiniu import Auth, put_file, etag
 import requests, os, pymysql, sys
-import datetime, time 
-import smtplib
+# from config import sqlFile_test
+import datetime, time
 import json
-import xlwt
-import re
 
 
 sys.path.append(os.getcwd() + '/')
@@ -23,29 +20,7 @@ class GetChinaMsg():
         """
         初始化邮件正文的商品名称
         """
-        self.Pass_china_conn = pymysql.connect(
-            host='rm-bp1ao27e2h337vf2c.mysql.rds.aliyuncs.com',
-            user="bigdata_rw",
-            password="Eyee@934",
-            database="community",
-            charset='utf8'
-        )
-
-        self.Pass_china_conn1 = pymysql.connect(
-            host='rm-bp1nomodr5ingvn4k.mysql.rds.aliyuncs.com',                                        #内网
-            # host='rm-bp1nomodr5ingvn4k4o.mysql.rds.aliyuncs.com',
-            user="bigdata_analysis",
-            password="bigdata_pwd123",
-            database="analysis",
-            charset='utf8'
-        )
-        self.Pass_china_cur1 = self.Pass_china_conn1.cursor()
-
-        self.Pass_china_cur = self.Pass_china_conn.cursor()
-
-        self.shoesname = ''
-        self.date = {}
-
+        self.Pass_china_conn, self.Pass_china_conn1, self.Pass_china_cur1, self.Pass_china_cur = sqlFile_test.Pass_china()
 
 
 
@@ -97,8 +72,6 @@ class GetChinaMsg():
 
         for i in range(len(ShoesList)):
 
-            date = {}
-
             seoSlug = ShoesList[i]['seoSlug']
 
             TheLinkadDress = 'https://www.nike.com/cn/launch/t/'+seoSlug
@@ -107,7 +80,7 @@ class GetChinaMsg():
 
                 if 'title' not in ShoesList[i]['product']:
 
-                    title = ShoesList[i]['name']
+                    title = str(ShoesList[i]['name']).replace('\"', '').replace('\'', '')
                     imageUrl = ShoesList[i]['imageUrl']
                     ShoesSku = str(ShoesList[i]['product']['style']) + '-' + str(ShoesList[i]['product']['colorCode'])
 
@@ -144,9 +117,7 @@ class GetChinaMsg():
 
                         pushid = int(round(time.time() * 1000))
 
-                        sql_1 = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, `status`, createtime, distributionid, linkurl, productid) VALUES("{}", '{}', 'SNKRS中国', '{}', '{}', '{}', 2, now(), 1, '{}', '{}')""".format(title, ShoesSku, Additional_information, startSellDate, Img_url, TheLinkadDress, productId)
-
-
+                        sql_1 = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, `status`, createtime, distributionid, linkurl, productid) VALUES("{}", "{}", 'SNKRS中国', '{}', '{}', '{}', 2, now(), 1, '{}', '{}')""".format(title, ShoesSku, Additional_information, startSellDate, Img_url, TheLinkadDress, productId)
 
                         try:
                             self.Pass_china_cur1.execute(sql_1)
@@ -156,7 +127,23 @@ class GetChinaMsg():
 
                         self.Pass_china_conn1.commit()
 
-                        Callbacdata = {'id': pushid}
+                        Callbacdata = {
+                            "title": "{}".format(title),
+                            "sku": "{}".format(ShoesSku),
+                            "distributionchannels": "{}".format(country),
+                            "replenishmenttype": "{}".format(Additional_information),
+                            "pushtime": "{}".format(startSellDate),
+                            "picurl": "{}".format(Img_url),
+                            "size": "",
+                            "status": "0",
+                            "createtime": "{}".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                            "distributionid": "1",
+                            "linkurl": "{}".format(TheLinkadDress),
+                            "productid": "{}".format(productId),
+                            "sortnum": "1",
+                            "pushstatus": "0",
+                            "pushid": "{}".format(pushid)
+                        }
 
                         Callbacheader = {'Content-Type': 'application/json'}
 
@@ -175,39 +162,15 @@ class GetChinaMsg():
 
                         if len(Grab_judgment) == 0:
 
-                            sql = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, `status`, createtime, distributionid, linkurl, productid, sortnum, pushid) VALUES("{}", '{}', 'SNKRS中国', '{}', '{}', '{}', 0, now(), 1, '{}', '{}', 1, {})""".format(title, ShoesSku, Additional_information, startSellDate, Img_url, TheLinkadDress, productId, pushid)
-
-                            try:
-                                self.Pass_china_cur.execute(sql)
-
-                            except Exception as e:
-                                print('插入错误：{}'.format(e))
-
-                            self.Pass_china_conn.commit()
-
-                            reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
-
+                            # reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+                            reqls = requests.post('http://stest.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
 
                             with open('/root/push/passChina.log', 'a') as d:
                                 d.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + str(reqls.text) + str(pushid))
                                 d.write('\n')
 
-                            date['productname'] = title
-                            date['ShoesSku'] = ShoesSku
-                            date['country'] = country
-                            date['information'] = Additional_information
-                            date['sellstarttime'] = startSellDate
-                            date['imageUrl'] = imageUrl
-                            date['TheLinkadDress'] = TheLinkadDress
-
-                            ShoeTitle.append(date)
-
 
         if len(ShoeTitle) > 0:
-            for i in ShoeTitle:
-                print(i)
-
-            # self.weixinsend(ShoeTitle)
 
             self.Pass_china_cur.close()
             self.Pass_china_conn.close()

@@ -1,15 +1,12 @@
 #!/usr/local/bin/python3
 #-*- coding: UTF-8 -*-
 
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from config import sqlFile as sqlFile_test
 from qiniu import Auth, put_file, etag
 import requests, os, pymysql, sys
+# from config import sqlFile_test
 import datetime, time
-import smtplib
 import json
-import xlwt
-import re
 
 
 sys.path.append(os.getcwd() + '/')
@@ -25,29 +22,7 @@ class GetChinaMsg():
         """
         初始化邮件正文的商品名称
         """
-        self.Pass_Usa_conn = pymysql.connect(
-            host='rm-bp1ao27e2h337vf2c.mysql.rds.aliyuncs.com',
-            user="bigdata_rw",
-            password="Eyee@934",
-            database="community",
-            charset='utf8'
-        )
-
-        self.Pass_Usa_conn1 = pymysql.connect(
-            host='rm-bp1nomodr5ingvn4k.mysql.rds.aliyuncs.com',                                        #内网
-            # host='rm-bp1nomodr5ingvn4k4o.mysql.rds.aliyuncs.com',
-            user="bigdata_analysis",
-            password="bigdata_pwd123",
-            database="analysis",
-            charset='utf8'
-        )
-        self.Pass_Usa_cur1 = self.Pass_Usa_conn1.cursor()
-
-        self.Pass_Usa_cur = self.Pass_Usa_conn.cursor()
-
-        self.shoesname = ''
-        self.date = {}
-
+        self.Pass_Usa_conn, self.Pass_Usa_conn1, self.Pass_Usa_cur1, self.Pass_Usa_cur = sqlFile_test.Pass_Usa()
 
 
 
@@ -96,18 +71,15 @@ class GetChinaMsg():
 
         for i in range(len(ShoesList)):
 
-            date = {}
-
             seoSlug = ShoesList[i]['seoSlug']
 
             TheLinkadDress = 'https://www.nike.com/us/launch/t/' + seoSlug
-
 
             if ShoesList[i]['id'] not in OldPublishTime:
 
                 if 'title' not in ShoesList[i]['product']:
 
-                    title = ShoesList[i]['name']
+                    title = str(ShoesList[i]['name']).replace('\"', '').replace('\'', '')
                     imageUrl = ShoesList[i]['imageUrl']
                     ShoesSku = str(ShoesList[i]['product']['style']) + '-' + str(ShoesList[i]['product']['colorCode'])
 
@@ -136,7 +108,6 @@ class GetChinaMsg():
                         with open('/root/snker_crawler/img/beauty_4.jpg', 'wb') as f:
                             f.write(r.content)
 
-
                         localfile = '/root/snker_crawler/img/beauty_4.jpg'
                         ret, info = put_file(token, key, localfile)
                         Img_url = 'http://putu4ibve.bkt.clouddn.com/' + json.loads(info.text_body).get('key')
@@ -145,8 +116,7 @@ class GetChinaMsg():
 
                         pushid = int(round(time.time() * 1000))
 
-                        sql_1 = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, `status`, createtime, distributionid, linkurl, productid) VALUES("{}", '{}', 'SNKRS 美国', '{}', '{}', '{}', 2, now(), 2, '{}', '{}')""".format(
-                            title, ShoesSku, Additional_information, startSellDate, Img_url, TheLinkadDress, productId)
+                        sql_1 = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, `status`, createtime, distributionid, linkurl, productid) VALUES("{}", "{}", 'SNKRS 美国', '{}', '{}', '{}', 2, now(), 2, '{}', '{}')""".format(title, ShoesSku, Additional_information, startSellDate, Img_url, TheLinkadDress, productId)
 
                         try:
                             self.Pass_Usa_cur1.execute(sql_1)
@@ -156,7 +126,23 @@ class GetChinaMsg():
 
                         self.Pass_Usa_conn1.commit()
 
-                        Callbacdata = {'id': pushid}
+                        Callbacdata = {
+                            "title": "{}".format(title),
+                            "sku": "{}".format(ShoesSku),
+                            "distributionchannels": "{}".format(country),
+                            "replenishmenttype": "{}".format(Additional_information),
+                            "pushtime": "{}".format(startSellDate),
+                            "picurl": "{}".format(Img_url),
+                            "size": "",
+                            "status": "0",
+                            "createtime": "{}".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                            "distributionid": "2",
+                            "linkurl": "{}".format(TheLinkadDress),
+                            "productid": "{}".format(productId),
+                            "sortnum": "2",
+                            "pushstatus": "0",
+                            "pushid": "{}".format(pushid)
+                        }
 
                         Callbacheader = {'Content-Type': 'application/json'}
 
@@ -164,8 +150,7 @@ class GetChinaMsg():
                         dt_minus1day1 = (now_time + datetime.timedelta(seconds=-4)).strftime('%Y-%m-%d %H:%M:%S')
                         dt_minus1day2 = (now_time + datetime.timedelta(seconds=+4)).strftime('%Y-%m-%d %H:%M:%S')
 
-                        sql_7 = "SELECT * FROM monitor_result WHERE linkurl='{}' AND createtime BETWEEN '{}' AND '{}'".format(
-                            TheLinkadDress, dt_minus1day1, dt_minus1day2)
+                        sql_7 = "SELECT * FROM monitor_result WHERE linkurl='{}' AND createtime BETWEEN '{}' AND '{}'".format(TheLinkadDress, dt_minus1day1, dt_minus1day2)
 
                         try:
                             self.Pass_Usa_cur.execute(sql_7)
@@ -176,37 +161,16 @@ class GetChinaMsg():
 
                         if len(Grab_judgment) == 0:
 
-                            sql = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, `status`, createtime, distributionid, linkurl, productid, sortnum, pushid) VALUES("{}", '{}', 'SNKRS美国', '{}', '{}', '{}', 0, now(), 2, '{}', '{}', 2, {})""".format(
-                                title, ShoesSku, Additional_information, startSellDate, Img_url, TheLinkadDress, productId, pushid)
-
-                            try:
-                                self.Pass_Usa_cur.execute(sql)
-
-                            except Exception as e:
-                                print('插入错误：{}'.format(e))
-
-                            self.Pass_Usa_conn.commit()
-
-                            reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+                            # reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+                            reqls = requests.post('http://stest.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
 
                             with open('/root/push/pushpassUsa.log', 'a') as d:
                                 d.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + str(reqls.text) + str(pushid))
                                 d.write('\n')
 
-                            date['productname'] = title
-                            date['ShoesSku'] = ShoesSku
-                            date['country'] = country
-                            date['information'] = Additional_information
-                            date['sellstarttime'] = startSellDate
-                            date['imageUrl'] = imageUrl
-                            date['TheLinkadDress'] = TheLinkadDress
 
-                            ShoeTitle.append(date)
 
         if len(ShoeTitle) > 0:
-            for i in ShoeTitle:
-                print(i)
-
             self.Pass_Usa_cur.close()
             self.Pass_Usa_conn.close()
 

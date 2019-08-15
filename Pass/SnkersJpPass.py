@@ -1,8 +1,10 @@
 #!/usr/local/bin/python3
 #-*- coding: UTF-8 -*-
 
+from config import sqlFile as sqlFile_test
 from qiniu import Auth, put_file, etag
 import requests, pymysql, sys, os
+# from config import sqlFile_test
 import datetime, time
 import json
 
@@ -19,30 +21,7 @@ class GetChinaMsg():
         """
         初始化邮件正文的商品名称
         """
-        self.Pass_JP_conn = pymysql.connect(
-            host='rm-bp1ao27e2h337vf2c.mysql.rds.aliyuncs.com',
-            user="bigdata_rw",
-            password="Eyee@934",
-            database="community",
-            charset='utf8'
-        )
-
-        self.Pass_JP_conn1 = pymysql.connect(
-            host='rm-bp1nomodr5ingvn4k.mysql.rds.aliyuncs.com',                                        #内网
-            # host='rm-bp1nomodr5ingvn4k4o.mysql.rds.aliyuncs.com',
-            user="bigdata_analysis",
-            password="bigdata_pwd123",
-            database="analysis",
-            charset='utf8'
-        )
-        self.Pass_JP_cur1 = self.Pass_JP_conn1.cursor()
-
-        self.Pass_JP_cur = self.Pass_JP_conn.cursor()
-
-        self.shoesname = ''
-        self.date = {}
-
-
+        self.Pass_JP_conn, self.Pass_JP_conn1, self.Pass_JP_cur1, self.Pass_JP_cur = sqlFile_test.Pass_JP()
 
 
     def GetHtml(self):
@@ -91,8 +70,6 @@ class GetChinaMsg():
 
         for i in range(len(ShoesList)):
 
-            date = {}
-
             seoSlug = ShoesList[i]['seoSlug']
 
             TheLinkadDress = 'https://www.nike.com/jp/launch/t/'+seoSlug
@@ -101,13 +78,12 @@ class GetChinaMsg():
 
                 if 'title' not in ShoesList[i]['product']:
 
-                    title = ShoesList[i]['name']
+                    title = str(ShoesList[i]['name']).replace('\"', '').replace('\'', '')
                     imageUrl = ShoesList[i]['imageUrl']
                     ShoesSku = str(ShoesList[i]['product']['style']) + '-' + str(ShoesList[i]['product']['colorCode'])
 
 
-                    if ShoesSku not in ['BQ4800-100', 'CD9329-001', 'AV4052-100', 'CK1905-100', 'CK1907-600',
-                                        'AO3189-001', 'AO3189-100']:
+                    if ShoesSku not in ['BQ4800-100', 'CD9329-001', 'AV4052-100', 'CK1905-100', 'CK1907-600', 'AO3189-001', 'AO3189-100']:
 
                         if 'pass' not in imageUrl:
                             Additional_information = '发售'
@@ -140,8 +116,7 @@ class GetChinaMsg():
 
                         pushid = int(round(time.time() * 1000))
 
-                        sql_1 = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, `status`, createtime, distributionid, linkurl, productid) VALUES("{}", '{}', 'SNKRS日本', '{}', '{}', '{}', 2, now(), 4, '{}', '{}')""".format(title, ShoesSku, Additional_information, startSellDate, Img_url, TheLinkadDress, productId)
-
+                        sql_1 = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, `status`, createtime, distributionid, linkurl, productid) VALUES("{}", "{}", 'SNKRS日本', '{}', '{}', '{}', 2, now(), 4, '{}', '{}')""".format(title, ShoesSku, Additional_information, startSellDate, Img_url, TheLinkadDress, productId)
 
                         try:
                             self.Pass_JP_cur1.execute(sql_1)
@@ -151,7 +126,23 @@ class GetChinaMsg():
 
                         self.Pass_JP_conn1.commit()
 
-                        Callbacdata = {'id': pushid}
+                        Callbacdata = {
+                            "title": "{}".format(title),
+                            "sku": "{}".format(ShoesSku),
+                            "distributionchannels": "{}".format(country),
+                            "replenishmenttype": "{}".format(Additional_information),
+                            "pushtime": "{}".format(startSellDate),
+                            "picurl": "{}".format(Img_url),
+                            "size": "",
+                            "status": "0",
+                            "createtime": "{}".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                            "distributionid": "4",
+                            "linkurl": "{}".format(TheLinkadDress),
+                            "productid": "{}".format(productId),
+                            "sortnum": "3",
+                            "pushstatus": "0",
+                            "pushid": "{}".format(pushid)
+                        }
 
                         Callbacheader = {'Content-Type': 'application/json'}
 
@@ -159,8 +150,7 @@ class GetChinaMsg():
                         dt_minus1day1 = (now_time + datetime.timedelta(seconds=-4)).strftime('%Y-%m-%d %H:%M:%S')
                         dt_minus1day2 = (now_time + datetime.timedelta(seconds=+4)).strftime('%Y-%m-%d %H:%M:%S')
 
-                        sql_7 = "SELECT * FROM monitor_result WHERE linkurl='{}' AND createtime BETWEEN '{}' AND '{}'".format(
-                            TheLinkadDress, dt_minus1day1, dt_minus1day2)
+                        sql_7 = "SELECT * FROM monitor_result WHERE linkurl='{}' AND createtime BETWEEN '{}' AND '{}'".format(TheLinkadDress, dt_minus1day1, dt_minus1day2)
 
                         try:
                             self.Pass_JP_cur.execute(sql_7)
@@ -171,38 +161,16 @@ class GetChinaMsg():
 
                         if len(Grab_judgment) == 0:
 
-                            sql = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, `status`, createtime, distributionid, linkurl, productid, sortnum, pushid) VALUES("{}", '{}', 'SNKRS日本', '{}', '{}', '{}', 0, now(), 4, '{}', '{}', 3, {})""".format(
-                                title, ShoesSku, Additional_information, startSellDate, Img_url, TheLinkadDress,
-                                productId, pushid)
-
-                            try:
-                                self.Pass_JP_cur.execute(sql)
-
-                            except Exception as e:
-                                print('插入错误：{}'.format(e))
-
-                            self.Pass_JP_conn.commit()
-                            reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+                            # reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+                            reqls = requests.post('http://stest.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
 
                             with open('/root/push/pushpassJP.log', 'a') as d:
                                 d.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + str(reqls.text) + str(pushid))
                                 d.write('\n')
 
-                            date['productname'] = title
-                            date['ShoesSku'] = ShoesSku
-                            date['country'] = country
-                            date['information'] = Additional_information
-                            date['sellstarttime'] = startSellDate
-                            date['imageUrl'] = imageUrl
-                            date['TheLinkadDress'] = TheLinkadDress
 
-                            ShoeTitle.append(date)
 
         if len(ShoeTitle) > 0:
-            for i in ShoeTitle:
-                print(i)
-
-            # self.weixinsend(ShoeTitle)
 
             self.Pass_JP_cur.close()
             self.Pass_JP_conn.close()

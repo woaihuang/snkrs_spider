@@ -2,12 +2,13 @@
 #-*- coding: UTF-8 -*-
 
 
-
+from config import sqlFile as sqlFile_test
 from qiniu import Auth, put_file, etag
 import requests, pymysql, os, sys
+# from config import sqlFile_test
 import datetime, time
 import json
-import re
+
 
 
 sys.path.append(os.getcwd() + '/')
@@ -23,30 +24,7 @@ class GetChinaMsg():
         """
         初始化邮件正文的商品名称
         """
-        self.Rep_Usa_conn = pymysql.connect(
-            host='rm-bp1ao27e2h337vf2c.mysql.rds.aliyuncs.com',
-            user="bigdata_rw",
-            password="Eyee@934",
-            database="community",
-            charset='utf8'
-        )
-
-        self.Rep_Usa_conn1 = pymysql.connect(
-            host='rm-bp1nomodr5ingvn4k.mysql.rds.aliyuncs.com',                                        #内网
-            # host='rm-bp1nomodr5ingvn4k4o.mysql.rds.aliyuncs.com',
-            user="bigdata_analysis",
-            password="bigdata_pwd123",
-            database="analysis",
-            charset='utf8'
-        )
-        self.Rep_Usa_cur1 = self.Rep_Usa_conn1.cursor()
-
-        self.Rep_Usa_cur = self.Rep_Usa_conn.cursor()
-
-        self.shoesname = ''
-        self.date = {}
-
-
+        self.Rep_Usa_conn, self.Rep_Usa_conn1, self.Rep_Usa_cur1, self.Rep_Usa_cur = sqlFile_test.Rep_Usa()
 
 
 
@@ -96,6 +74,7 @@ class GetChinaMsg():
             if 'title' in ShoesList[i]['product'] and ShoesSku not in ['BQ4800-100', 'CD9329-001', 'AV4052-100', 'CK1905-100', 'CK1907-600', 'AO3189-001', 'AO3189-100']:
 
                 sql = 'select id, size, productid from monitor_result where distributionid=2 and `status`=0 and productid="{}"'.format(productId)
+
                 try:
                     self.Rep_Usa_cur1.execute(sql)
                 except Exception as E:
@@ -133,11 +112,10 @@ class GetChinaMsg():
 
                         self.Rep_Usa_conn1.commit()
 
-                        title = ShoesList[i]['product']['title']
+                        title = str(ShoesList[i]['product']['title']).replace('\'', '').replace('\"', '')
 
                         imageUrl = ShoesList[i]['product']['imageUrl']
-                        ShoesSku = str(ShoesList[i]['product']['style']) + '-' + str(
-                            ShoesList[i]['product']['colorCode'])
+                        ShoesSku = str(ShoesList[i]['product']['style']) + '-' + str(ShoesList[i]['product']['colorCode'])
 
                         Additional_information = '补货'
 
@@ -165,7 +143,23 @@ class GetChinaMsg():
 
                         pushid = int(round(time.time() * 1000))
 
-                        Callbacdata = {'id': pushid}
+                        Callbacdata = {
+                            "title": "{}".format(title),
+                            "sku": "{}".format(ShoesSku),
+                            "distributionchannels": "{}".format(country),
+                            "replenishmenttype": "{}".format(Additional_information),
+                            "pushtime": "",
+                            "picurl": "{}".format(Img_url),
+                            "size": "{}".format(replenishment_dict),
+                            "status": "1",
+                            "createtime": "{}".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                            "distributionid": "2",
+                            "linkurl": "{}".format(TheLinkadDress),
+                            "productid": "{}".format(productId),
+                            "sortnum": "2",
+                            "pushstatus": "0",
+                            "pushid": "{}".format(pushid)
+                        }
 
                         Callbacheader = {'Content-Type': 'application/json'}
 
@@ -185,16 +179,7 @@ class GetChinaMsg():
 
                         if len(Grab_judgment) == 0:
 
-                            sql = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, picurl, size, `status`, createtime, distributionid, linkurl, productid, sortnum, pushid)
-                                                    VALUES("{}", '{}', 'SNKRS美国', '{}', '{}', "{}", 1, now(), 2, '{}', '{}', 2, {})""".format(title, ShoesSku, Additional_information, Img_url, replenishment_dict, TheLinkadDress, productId, pushid)
-
-                            try:
-                                self.Rep_Usa_cur.execute(sql)
-
-                            except Exception as e:
-                                print('插入错误：{}'.format(e))
-
-                            self.Rep_Usa_conn.commit()
+                            sql = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, picurl, size, `status`, createtime, distributionid, linkurl, productid, sortnum, pushid) VALUES("{}", "{}", 'SNKRS美国', '{}', '{}', "{}", 1, now(), 2, '{}', '{}', 2, {})""".format(title, ShoesSku, Additional_information, Img_url, replenishment_dict, TheLinkadDress, productId, pushid)
 
                             try:
                                 self.Rep_Usa_cur1.execute(sql)
@@ -205,7 +190,8 @@ class GetChinaMsg():
                             self.Rep_Usa_conn1.commit()
 
                             try:
-                                reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+                                # reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+                                reqls = requests.post('http://stest.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
 
                                 with open('/root/push/pushreplenishmentUsa.log', 'a') as d:
                                     d.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + str(reqls.text) + str(pushid))
@@ -213,20 +199,8 @@ class GetChinaMsg():
                             except Exception as E:
                                 print(E)
 
-                            date['productname'] = title
-                            date['ShoesSku'] = ShoesSku
-                            date['country'] = country
-                            date['information'] = Additional_information
-                            date['replenishment'] = replenishment_dict
-                            date['imageUrl'] = imageUrl
-                            date['TheLinkadDress'] = TheLinkadDress
-
-                            ShoeTitle.append(date)
 
         if len(ShoeTitle) > 0:
-            for i in ShoeTitle:
-                print(i)
-
             self.Rep_Usa_cur.close()
             self.Rep_Usa_conn.close()
 

@@ -1,15 +1,13 @@
 #!/usr/local/bin/python3
 #-*- coding: UTF-8 -*-
 
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+
+from config import sqlFile as sqlFile_test
 from qiniu import Auth, put_file, etag
 import requests, os, pymysql, sys
+# from config import sqlFile_test
 import datetime, time
-import smtplib
 import json
-import xlwt
-import re
 
 
 sys.path.append(os.getcwd() + '/')
@@ -23,30 +21,7 @@ class GetChinaMsg():
         """
         初始化邮件正文的商品名称
         """
-        self.excl_Uk_conn = pymysql.connect(
-            host='rr-bp1ikaw9tc3sqe98r.mysql.rds.aliyuncs.com',
-            user="bigdata_rw",
-            password="Eyee@934",
-            database="community",
-            charset='utf8'
-        )
-
-        self.excl_Uk_conn1 = pymysql.connect(
-            host='rm-bp1nomodr5ingvn4k.mysql.rds.aliyuncs.com',                                        #内网
-            # host='rm-bp1nomodr5ingvn4k4o.mysql.rds.aliyuncs.com',
-            user="bigdata_analysis",
-            password="bigdata_pwd123",
-            database="analysis",
-            charset='utf8'
-        )
-        self.excl_Uk_cur1 = self.excl_Uk_conn1.cursor()
-
-        self.excl_Uk_cur = self.excl_Uk_conn.cursor()
-
-        self.shoesname = ''
-        self.date = {}
-
-
+        self.excl_Uk_conn, self.excl_Uk_conn1, self.excl_Uk_cur1, self.excl_Uk_cur = sqlFile_test.excl_Uk()
 
 
 
@@ -97,8 +72,6 @@ class GetChinaMsg():
 
         for i in range(len(ShoesList)):
 
-            date = {}
-
             replenishment_dict = {}
 
             seoSlug = ShoesList[i]['seoSlug']
@@ -115,12 +88,12 @@ class GetChinaMsg():
 
                 if 'title' in ShoesList[i]['product'] and restricted is True:
 
-                    title = ShoesList[i]['product']['title']
+                    title = str(ShoesList[i]['product']['title']).replace('\'', '').replace('\"', '')
                     imageUrl = ShoesList[i]['product']['imageUrl']
 
                     startSellDate = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                    Additional_information = '专属购买'  # 附加信息
+                    Additional_information = '专属>突袭'  # 附加信息
 
 
                     if 'skus' in ShoesList[i]['product']:
@@ -151,7 +124,7 @@ class GetChinaMsg():
 
                     pushid = int(round(time.time() * 1000))
 
-                    sql_1 = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, size, `status`, createtime, distributionid, linkurl, productid, sortnum) VALUES("{}", '{}', 'SNKRS英国', '{}', '{}', '{}', "{}", 3, now(), 3, '{}', '{}', 4)""".format(title, ShoesSku, Additional_information, startSellDate, Img_url, replenishment_dict, TheLinkadDress, productId)
+                    sql_1 = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, size, `status`, createtime, distributionid, linkurl, productid, sortnum) VALUES("{}", "{}", 'SNKRS英国', '{}', now(), '{}', "{}", 3, now(), 3, '{}', '{}', 4)""".format(title, ShoesSku, Additional_information, Img_url, replenishment_dict, TheLinkadDress, productId)
 
                     try:
                         self.excl_Uk_cur1.execute(sql_1)
@@ -161,7 +134,23 @@ class GetChinaMsg():
 
                     self.excl_Uk_conn1.commit()
 
-                    Callbacdata = {'id': pushid}
+                    Callbacdata = {
+                        "title": "{}".format(title),
+                        "sku": "{}".format(ShoesSku),
+                        "distributionchannels": "{}".format(country),
+                        "replenishmenttype": "{}".format(Additional_information),
+                        "pushtime": "{}".format(startSellDate),
+                        "picurl": "{}".format(Img_url),
+                        "size": "{}".format(replenishment_dict),
+                        "status": "0",
+                        "createtime": "{}".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                        "distributionid": "3",
+                        "linkurl": "{}".format(TheLinkadDress),
+                        "productid": "{}".format(productId),
+                        "sortnum": "4",
+                        "pushstatus": "0",
+                        "pushid": "{}".format(pushid)
+                    }
 
                     Callbacheader = {'Content-Type': 'application/json'}
 
@@ -169,9 +158,8 @@ class GetChinaMsg():
                     dt_minus1day1 = (now_time + datetime.timedelta(seconds=-4)).strftime('%Y-%m-%d %H:%M:%S')
                     dt_minus1day2 = (now_time + datetime.timedelta(seconds=+4)).strftime('%Y-%m-%d %H:%M:%S')
 
-                    sql_7 = "SELECT * FROM monitor_result WHERE linkurl='{}' AND createtime BETWEEN '{}' AND '{}'".format(
-                        TheLinkadDress, dt_minus1day1, dt_minus1day2)
-                    print(sql_7)
+                    sql_7 = "SELECT * FROM monitor_result WHERE linkurl='{}' AND createtime BETWEEN '{}' AND '{}'".format(TheLinkadDress, dt_minus1day1, dt_minus1day2)
+
                     try:
                         self.excl_Uk_cur.execute(sql_7)
                     except Exception as E:
@@ -181,20 +169,9 @@ class GetChinaMsg():
 
                     if len(Grab_judgment) == 0:
 
-                        sql = """INSERT INTO monitor_result (title, sku, distributionchannels, replenishmenttype, pushtime, picurl, size, `status`, createtime, distributionid, linkurl, productid, sortnum, pushid) VALUES("{}", '{}', 'SNKRS英国', '{}', '{}', '{}', "{}", 0, now(), 3, '{}', '{}', 4, {})""".format(
-                            title, ShoesSku, Additional_information, startSellDate, Img_url, replenishment_dict,
-                            TheLinkadDress, productId, pushid)
-
                         try:
-                            self.excl_Uk_cur.execute(sql)
-
-                        except Exception as e:
-                            print('插入错误：{}'.format(e))
-
-                        self.excl_Uk_conn.commit()
-
-                        try:
-                            reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+                            # reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+                            reqls = requests.post('http://stest.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
 
                             with open('/root/push/pushexclUK.log', 'a') as d:
                                 d.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')+str(reqls.text) + str(pushid))
@@ -203,21 +180,9 @@ class GetChinaMsg():
                         except Exception as E:
                             print(E)
 
-                        date['productname'] = title
-                        date['ShoesSku'] = ShoesSku
-                        date['country'] = country
-                        date['information'] = Additional_information
-                        date['sellstarttime'] = startSellDate
-                        date['imageUrl'] = imageUrl
-                        date['TheLinkadDress'] = TheLinkadDress
 
-                        ShoeTitle.append(date)
 
         if len(ShoeTitle) > 0:
-            for i in ShoeTitle:
-                print(i)
-
-            # self.weixinsend(ShoeTitle)
 
             self.excl_Uk_cur.close()
             self.excl_Uk_conn.close()
