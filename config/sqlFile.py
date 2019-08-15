@@ -19,7 +19,6 @@ def sale_china():
 
     china_conn1 = pymysql.connect(
         host='rm-bp1nomodr5ingvn4k.mysql.rds.aliyuncs.com',  # 内网
-        # host='rm-bp1nomodr5ingvn4k4o.mysql.rds.aliyuncs.com',
         user="bigdata_analysis",
         password="bigdata_pwd123",
         database="analysis",

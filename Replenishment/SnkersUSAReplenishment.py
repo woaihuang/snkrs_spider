@@ -190,8 +190,8 @@ class GetChinaMsg():
                             self.Rep_Usa_conn1.commit()
 
                             try:
-                                # reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
-                                reqls = requests.post('http://stest.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+                                reqls = requests.post('http://mapi.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
+                                # reqls = requests.post('http://stest.eyee.com/capi/community/monitor/open/push', data=json.dumps(Callbacdata), headers=Callbacheader, timeout=5)
 
                                 with open('/root/push/pushreplenishmentUsa.log', 'a') as d:
                                     d.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + str(reqls.text) + str(pushid))
